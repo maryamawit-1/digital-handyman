@@ -5,6 +5,7 @@ const router = express.Router();
 // Note: We use the adminController for both login and dashboard logic
 const { adminLogin, dashboard } = require('../controllers/adminController');
 const { adminUpdateServiceRequest, deleteRequestAdmin, searchRequestByRef, deleteRequest } = require('../controllers/serviceRequestController');
+const { getAllApplicationsAdmin, getApplicationByIdAdmin, adminUpdateApplication, approveApplication, adminSearchApplications, adminCreateProvider, adminGetAllProviders, adminSearchProviders } = require('../controllers/providerController');
 
 // Import the middleware for protection
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
@@ -47,5 +48,19 @@ router.get('/requests/search/:referenceId', verifyToken, requireRole('ADMIN', 'O
 
 // Admin: delete a service request (accepts numeric id or referenceId like 'SR-...')
 router.delete('/requests/:id', verifyToken, requireRole('ADMIN', 'OWNER'), deleteRequest);
+
+// Admin: provider applications management
+// Search must come before routes using :id
+router.get('/applications/search', verifyToken, requireRole('ADMIN', 'OWNER'), adminSearchApplications);
+router.get('/applications', verifyToken, requireRole('ADMIN', 'OWNER'), getAllApplicationsAdmin);
+router.get('/applications/:id', verifyToken, requireRole('ADMIN', 'OWNER'), getApplicationByIdAdmin);
+router.patch('/applications/:id', verifyToken, requireRole('ADMIN', 'OWNER'), adminUpdateApplication);
+router.post('/applications/:id/approve', verifyToken, requireRole('ADMIN', 'OWNER'), approveApplication);
+
+// Admin: manage active service providers
+// Place search above any routes using :id to avoid conflicts
+router.get('/providers/search', verifyToken, requireRole('ADMIN', 'OWNER'), adminSearchProviders);
+router.post('/providers', verifyToken, requireRole('ADMIN', 'OWNER'), adminCreateProvider);
+router.get('/providers', verifyToken, requireRole('ADMIN', 'OWNER'), adminGetAllProviders);
 
 module.exports = router;

@@ -8,7 +8,7 @@ async function insertServiceRequestWithService(serviceRequest) {
   `;
 
   const params = [
-    serviceRequest.referenceId,   // Matches referenceId in DB
+    serviceRequest.referenceId,
     serviceRequest.name,
     serviceRequest.email,
     serviceRequest.phone,
@@ -18,11 +18,28 @@ async function insertServiceRequestWithService(serviceRequest) {
     serviceRequest.service ? serviceRequest.service.name : 'Unknown',
     serviceRequest.serviceQuantity,
     serviceRequest.estimatedCost,
-    // customer's preferred date/time (may be null)
     serviceRequest.preferredDate || null,
     serviceRequest.preferredTime || null,
     serviceRequest.status || 'PENDING'
   ];
+
+  const [result] = await pool.query(sql, params);
+  return result;
+}
+
+async function assignProvidersToRequest(requestId, providerIds = []) {
+  if (!requestId) throw new Error('requestId is required');
+  if (!Array.isArray(providerIds) || providerIds.length === 0) {
+    return { affectedRows: 0 };
+  }
+
+  // Build bulk insert for assignments
+  const placeholders = providerIds.map(() => '(?, ?, NOW())').join(', ');
+  const sql = `INSERT INTO service_request_assignments (request_id, provider_id, assigned_at) VALUES ${placeholders}`;
+  const params = [];
+  for (const pid of providerIds) {
+    params.push(requestId, pid);
+  }
 
   const [result] = await pool.query(sql, params);
   return result;
@@ -99,6 +116,7 @@ module.exports = {
   getServiceRequestByRef,
   deleteServiceRequestById,
   deleteServiceRequestByRef,
+  assignProvidersToRequest,
 };
 
 /*async function insertServiceRequest(data) {
