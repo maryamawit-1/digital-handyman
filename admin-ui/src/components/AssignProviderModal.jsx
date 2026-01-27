@@ -17,18 +17,15 @@ useEffect(() => {
       const token = localStorage.getItem('token');
 
       // 1. Get the service ID from the request object passed to the modal
-      const serviceId = request.service_id; 
+      //const serviceId = request.service_id; 
 
       // 2. Call the API, passing the serviceId as a query parameter
-      client.get(`/api/admin/providers/available?serviceId=${serviceId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => setProviders(res.data))
-        .catch(() => toast.error("Could not load filtered providers"))
-        .finally(() => setLoading(false));
-    }
-    // Note: The dependency array must include request, or the modal won't refilter
-}, [isOpen, request]); // Dependency on request ensures refiltering when a new job is selected
+       adminGetAvailableProviders(token, request.service_id)
+      .then(res => setProviders(res.data))
+      .catch(() => toast.error("Could not load filtered providers"))
+      .finally(() => setLoading(false));
+  }
+}, [isOpen, request]);
 
   const handleAssign = async () => {
     if (!selectedProvider) return toast.error("Please select a provider");
@@ -82,7 +79,7 @@ useEffect(() => {
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-slate-800">{p.first_name} {p.last_name}</div>
+                    <div className="font-bold text-slate-800">{p.name}</div>
                     <div className="text-xs text-slate-500">{p.skills || 'General Handyman'}</div>
                   </div>
                   <div className="flex items-center gap-1 text-amber-500 text-sm font-bold">

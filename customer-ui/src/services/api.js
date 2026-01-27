@@ -99,8 +99,8 @@ export function adminDeleteFeedback(token, id) {
 // ... existing code above ...
 
 // Update this function name specifically:
-export function adminGetAvailableProviders(token) {
-  return client.get('/api/admin/providers/available', authHeaders(token))
+export function adminGetAvailableProviders(token, serviceId) {
+  return client.get(`/api/admin/providers/available?serviceId=${serviceId}`, authHeaders(token))
 }
 
 // Keep this one as well:

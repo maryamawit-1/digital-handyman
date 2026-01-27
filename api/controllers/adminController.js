@@ -89,25 +89,57 @@ async function deleteRequest(req, res) {
 }
 
 // 6. Get Available Providers (With Skill Matching Logic)
+// async function getAvailableProviders(req, res) {
+//     const { serviceId } = req.query; 
+//     let sql = 'SELECT id, first_name, last_name, skills, rating FROM service_providers WHERE is_available = 1';
+//     let params = [];
+
+//     try {
+//         if (serviceId) {
+//             const [serviceRow] = await db.query('SELECT name FROM services WHERE id = ?', [serviceId]);
+//             const serviceName = serviceRow[0]?.name;
+
+//             if (serviceName) {
+//                 sql += ' AND LOWER(skills) LIKE ?';
+//                 params.push(`%${serviceName.toLowerCase()}%`);
+//             }
+//         }
+//         const [rows] = await db.query(sql, params);
+//         res.json(rows);
+//     } catch (err) { res.status(500).json({ error: err.message }); }
+// }
 async function getAvailableProviders(req, res) {
-    const { serviceId } = req.query; 
-    let sql = 'SELECT id, first_name, last_name, skills, rating FROM service_providers WHERE is_available = 1';
-    let params = [];
+  const { serviceId } = req.query; 
+  let sql = 'SELECT id, first_name, last_name, skills, rating FROM service_providers WHERE is_available = 1';
+  let params = [];
 
-    try {
-        if (serviceId) {
-            const [serviceRow] = await db.query('SELECT name FROM services WHERE id = ?', [serviceId]);
-            const serviceName = serviceRow[0]?.name;
+  try {
+    if (serviceId) {
+      const [serviceRow] = await db.query('SELECT name FROM services WHERE id = ?', [serviceId]);
+      const serviceName = serviceRow[0]?.name;
 
-            if (serviceName) {
-                sql += ' AND LOWER(skills) LIKE ?';
-                params.push(`%${serviceName.toLowerCase()}%`);
-            }
-        }
-        const [rows] = await db.query(sql, params);
-        res.json(rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      if (serviceName) {
+        sql += ' AND LOWER(skills) LIKE ?';
+        params.push(`%${serviceName.toLowerCase()}%`);
+      }
+    }
+
+    const [rows] = await db.query(sql, params);
+
+    const formatted = rows.map(p => ({
+      id: p.id,
+      name: `${p.first_name} ${p.last_name}`,
+      skills: p.skills,
+      rating: p.rating
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("❌ GET AVAILABLE PROVIDERS ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 }
+
 
 // 7. Assign Provider (With Double-Booking Check + Email)
 // Function 7: Assign Provider (FINAL VERSION with Time Window Overlap Check)
