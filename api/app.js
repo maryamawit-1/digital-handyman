@@ -5,7 +5,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:7000"], // Allow both frontends
+  origin: [
+    "https://digital-handyman.vercel.app",
+    "https://digital-handyman-t4h2.vercel.app"
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -29,13 +32,7 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
-app.use(cors({
-  origin: [
-    "https://digital-handyman.vercel.app",
-    "https://digital-handyman-t4h2.vercel.app"
-  ],
-  credentials: true
-}));
+
 // Root route
 app.get('/', (req, res) => {
   res.json({ message: "Welcome to the Digital Handyman Service API" });
