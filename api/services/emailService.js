@@ -31,7 +31,7 @@ const sendApprovalEmail = async (toEmail, name, tempPassword) => {
     html: `<h2>Welcome, ${name}!</h2>
            <p>Your account is ready. Login with:</p>
            <p><b>Email:</b> ${toEmail}<br/><b>Password:</b> ${tempPassword}</p>
-           <p><a href="http://localhost:5173/provider/login">Provider Portal</a></p>`
+           <p><a href="https://digital-handyman.vercel.app/provider/login">Provider Portal</a></p>`
   };
   await transporter.sendMail(mailOptions);
 };
@@ -45,7 +45,7 @@ const sendBookingConfirmation = async (toEmail, customerName, refId, serviceName
     html: `<h2>Hello ${customerName},</h2>
            <p>We received your request for <b>${serviceName}</b>.</p>
            <p>Your Reference ID is: <b>${refId}</b></p>
-           <p><a href="http://localhost:5173/track">Track Request</a></p>`
+           <p><a href="https://digital-handyman.vercel.app/track">Track Request</a></p>`
   };
   await transporter.sendMail(mailOptions);
 };
@@ -58,7 +58,7 @@ const sendJobAssignmentEmail = async (toEmail, providerName, refId, serviceName,
     subject: `🔔 New Job: ${serviceName}`,
     html: `<h2>New Assignment</h2>
            <p><b>Job:</b> ${serviceName}<br/><b>Location:</b> ${address}<br/><b>Time:</b> ${date} at ${time}</p>
-           <p><a href="http://localhost:5173/provider/login">View in Dashboard</a></p>`
+           <p><a href="https://digital-handyman.vercel.app/provider/login">View in Dashboard</a></p>`
   };
   await transporter.sendMail(mailOptions);
 };
