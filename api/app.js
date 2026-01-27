@@ -29,6 +29,13 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:7000"
+  ],
+  credentials: true
+}));
 // Root route
 app.get('/', (req, res) => {
   res.json({ message: "Welcome to the Digital Handyman Service API" });
