@@ -1,15 +1,19 @@
-﻿const pool = require('../config/db');
+const db = require('../config/db');
 
-async function insertFeedback(data) {
-  const sql = `INSERT INTO feedback (id, request_id, customer_id, rating, comment, created_at) VALUES (?, ?, ?, ?,?,?)`;
-  const params = [data.id, data.request_id, data.customer_id || null, data.rating || null, data.comment || null, data.created_at];
-  const [result] = await pool.query(sql, params);
-  return result;
-}
+const Feedback = {
+    getAll: async () => {
+        const [rows] = await db.query(`
+            SELECT f.*, c.first_name, c.last_name, sr.referenceId 
+            FROM feedback f
+            JOIN customers c ON f.customer_id = c.id
+            JOIN service_requests sr ON f.request_id = sr.id
+        `);
+        return rows;
+    },
+    create: async (data) => {
+        const [result] = await db.query('INSERT INTO feedback SET ?', data);
+        return result.insertId;
+    }
+};
 
-async function getAllFeedbacks() {
-  const [rows] = await pool.query('SELECT * FROM feedback');
-  return rows;
-}
-
-module.exports = { insertFeedback, getAllFeedbacks };
+module.exports = Feedback;

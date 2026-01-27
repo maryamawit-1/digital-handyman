@@ -1,47 +1,46 @@
 const pool = require('../config/db');
 
-async function validateServiceRequest(req, res, next) {
-  try {
-    const { name, email, service_id } = req.body;
-    const qtyInput = req.body.quantity ?? req.body.service_quantity ?? req.body.serviceQuantity;
+const validateServiceRequest = (req, res, next) => {
+    // We now look for start and end times
+    const { preferred_date, preferred_time_start, preferred_time_end, address } = req.body;
 
-    if (!name || String(name).trim() === '') {
-      return res.status(400).json({ message: 'name is required' });
+    if (!address || address.length < 10) {
+        return res.status(400).json({ message: "Address is too short. Please provide full details." });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
-      return res.status(400).json({ message: 'Invalid email' });
-    }
-
-    if (!service_id) {
-      return res.status(400).json({ message: 'service_id is required' });
-    }
-
-    const quantity = Number(qtyInput ?? 0);
-    if (Number.isNaN(quantity) || quantity <= 0) {
-      return res.status(400).json({ message: 'quantity must be a number greater than 0' });
-    }
-
-    // verify service exists
-    const [rows] = await pool.query('SELECT id FROM services WHERE id = ?', [service_id]);
-    if (!rows || rows.length === 0) {
-      return res.status(400).json({ message: 'service_id not found' });
-    }
-
-    // attach normalized values for downstream handlers
-    req.validatedServiceRequest = {
-      name: String(name).trim(),
-      email: String(email).trim(),
-      service_id: rows[0].id,
-      quantity,
+    // Convert time strings (HH:MM) to comparable minutes from midnight
+    const timeToMinutes = (time) => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
     };
+    
+    const startMinutes = timeToMinutes(preferred_time_start);
+    const endMinutes = timeToMinutes(preferred_time_end);
 
+    // 1. Validate Business Hours (08:00 - 18:00)
+    // 8:00 AM = 480 min; 6:00 PM = 1080 min
+    if (startMinutes < 480 || endMinutes > 1080) {
+        return res.status(400).json({ message: "Bookings allowed only between 8:00 AM and 6:00 PM." });
+    }
+
+    // 2. Validate Start < End
+    if (startMinutes >= endMinutes) {
+        return res.status(400).json({ message: "Start time must be before end time." });
+    }
+
+    // 3. Block Past Dates/Times
+    if (preferred_date && preferred_time_start) {
+        const bookingStart = new Date(`${preferred_date}T${preferred_time_start}:00`);
+        const now = new Date();
+
+        if (bookingStart.getTime() <= now.getTime()) {
+             return res.status(400).json({ message: "Cannot book for a time that has already passed." });
+        }
+    }
+
+    // If all checks pass, attach data and move on
+    req.validatedServiceRequest = req.body; 
     next();
-  } catch (err) {
-    console.error('validateServiceRequest error', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-}
+};
 
 module.exports = validateServiceRequest;

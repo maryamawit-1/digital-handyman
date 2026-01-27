@@ -2,20 +2,20 @@
 require('dotenv').config();
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'handyman_db',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD, // This line is what was missing the password
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 });
 
-// Simple check to ensure connection works
+// Test connection
 pool.getConnection()
-  .then(connection => {
+  .then(conn => {
     console.log('✅ Connected to MySQL Database');
-    connection.release();
+    conn.release();
   })
   .catch(err => {
     console.error('❌ Database connection failed:', err.message);

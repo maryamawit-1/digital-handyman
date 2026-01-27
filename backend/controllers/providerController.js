@@ -1,224 +1,111 @@
-﻿const ProviderModel = require('../models/providerModel');
-const pool = require('../config/db');
-const ServiceProviderModel = require('../models/serviceProviderModel');
+﻿const db = require('../config/db');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { sendApplicationReceivedEmail } = require('../services/emailService'); // Required for this controller
 
-function isValidEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(String(email).toLowerCase());
-}
-
+/**
+ * 1. Public: Submit provider application
+ */
 async function submitProviderApplication(req, res) {
-  try {
-    const { email, phone, experience_details, skills, first_name, last_name } = req.body || {};
+    try {
+        const data = req.body;
+        
+        const firstName = data.first_name || data.firstName;
+        const email = data.email;
+        const skills = data.skills;
 
-    if (!email || !phone || !experience_details || !skills) {
-      return res.status(400).json({ message: 'email, phone, experience_details and skills are required' });
-    }
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: 'Invalid email format' });
-    }
-
-    const data = {
-      first_name: first_name || req.body.firstName || null,
-      last_name: last_name || req.body.lastName || null,
-      email,
-      phone,
-      experience_details,
-      skills,
-      status: 'PENDING',
-    };
-
-    const result = await ProviderModel.insertApplication(data);
-    return res.status(201).json({ message: 'Provider application submitted', id: result.insertId });
-  } catch (err) {
-    console.error('submitProviderApplication error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-}
-
-async function adminUpdateApplication(req, res) {
-  try {
-    const id = req.params.id;
-    if (!id) return res.status(400).json({ message: 'Application id is required' });
-
-    const { status, first_name, last_name, email, phone, experience_details, skills } = req.body || {};
-
-    const updates = {};
-    if (status !== undefined) updates.status = status;
-    if (first_name !== undefined) updates.first_name = first_name;
-    if (last_name !== undefined) updates.last_name = last_name;
-    if (email !== undefined) {
-      if (!isValidEmail(email)) return res.status(400).json({ message: 'Invalid email format' });
-      updates.email = email;
-    }
-    if (phone !== undefined) updates.phone = phone;
-    if (experience_details !== undefined) updates.experience_details = experience_details;
-    if (skills !== undefined) updates.skills = skills;
-
-    if (Object.keys(updates).length === 0) return res.status(400).json({ message: 'No update fields provided' });
-
-    const result = await ProviderModel.updateApplication(id, updates);
-    let message = 'Application updated';
-
-    // If admin approved, transfer application to service_providers
-    if (status === 'APPROVED') {
-      try {
-        const transfer = await ProviderModel.transferAppToProvider(id);
-        if (transfer && transfer.message) {
-          // e.g., application not found or duplicate
-          return res.status(400).json({ message: transfer.message, result });
+        if (!firstName || !email || !data.phone || !skills) {
+            return res.status(400).json({ message: 'First Name, Email, Phone, and Skills are required.' });
         }
 
-        // success
-        message = 'Provider approved and moved to active service providers list';
-        return res.json({ message, result, transfer });
-      } catch (err) {
-        console.error('transferAppToProvider error', err);
-        return res.status(500).json({ message: 'Error transferring provider' });
-      }
+        const sql = `
+            INSERT INTO provider_applications 
+            (first_name, last_name, email, phone, experience_details, skills, status) 
+            VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
+        `;
+        
+        const params = [
+            firstName, 
+            data.last_name || '',        
+            email, 
+            data.phone, 
+            data.experience_details || '', 
+            skills
+        ];
+
+        await db.query(sql, params);
+
+        // Send Acknowledgment Email
+        try {
+            await sendApplicationReceivedEmail(email, firstName, skills);
+        } catch (e) {
+            console.error("📧 Application Acknowledgment Email failed:", e.message);
+        }
+
+        res.status(201).json({ message: 'Application submitted successfully!' });
+
+    } catch (err) {
+        console.error('❌ SUBMIT PROVIDER APPLICATION ERROR:', err);
+        res.status(500).json({ message: 'Database Error', error: err.message });
     }
-
-    return res.json({ message, result });
-  } catch (err) {
-    console.error('adminUpdateApplication error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 }
 
-async function getAllApplicationsAdmin(req, res) {
-  try {
-    const rows = await ProviderModel.getAllApplications();
-    return res.json(rows);
-  } catch (err) {
-    console.error('getAllApplicationsAdmin error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+/**
+ * 2. Provider Login
+ */
+async function providerLogin(req, res) {
+    const { email, password } = req.body;
+    try {
+        const [rows] = await db.query('SELECT * FROM service_providers WHERE email = ?', [email]);
+        const provider = rows[0];
+
+        if (!provider) return res.status(401).json({ message: "Invalid credentials" });
+
+        const isMatch = await bcrypt.compare(password, provider.password);
+        if (isMatch) {
+            const token = jwt.sign({ id: provider.id, role: 'provider' }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+            res.json({ token, provider: { id: provider.id, name: provider.first_name, email: provider.email } });
+        } else {
+            res.status(401).json({ message: "Invalid credentials" });
+        }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
-async function getApplicationByIdAdmin(req, res) {
-  try {
-    const id = req.params.id;
-    if (!id) return res.status(400).json({ message: 'Application id is required' });
-
-    const rows = await ProviderModel.getApplicationById(id);
-    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Application not found' });
-    return res.json(rows[0]);
-  } catch (err) {
-    console.error('getApplicationByIdAdmin error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+/**
+ * 3. Get My Jobs
+ */
+async function getMyJobs(req, res) {
+    const { id } = req.params; 
+    try {
+        const [jobs] = await db.query(`
+            SELECT sr.*, c.first_name as cust_name, c.phone as cust_phone, c.address as cust_address, s.name as service_name
+            FROM service_requests sr
+            JOIN customers c ON sr.customer_id = c.id
+            JOIN services s ON sr.service_id = s.id
+            WHERE sr.provider_id = ?`, [id]);
+        res.json(jobs);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
-async function approveApplication(req, res) {
-  try {
-    const id = req.params.id;
-    if (!id) return res.status(400).json({ message: 'Application id is required' });
+/**
+ * 4. Mark Job as Completed
+ */
+async function completeJob(req, res) {
+    const { id, jobId } = req.params; // Provider ID, Job ID
+    try {
+        const [check] = await db.query('SELECT * FROM service_requests WHERE id = ? AND provider_id = ?', [jobId, id]);
+        
+        if (check.length === 0) return res.status(403).json({ message: "Unauthorized or Job not found" });
 
-    // Ensure application exists
-    const rows = await ProviderModel.getApplicationById(id);
-    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Application not found' });
-
-    const app = rows[0];
-    const email = app.email;
-
-    // Check if provider with this email already exists
-    const [existing] = await pool.query('SELECT id FROM service_providers WHERE email = ? LIMIT 1', [email]);
-    if (existing && existing.length > 0) {
-      return res.status(409).json({ message: 'A provider with this email already exists' });
-    }
-
-    // Transfer and approve
-    const result = await ProviderModel.approveAndTransferProvider(id);
-    return res.json({ message: 'Application approved and provider transferred', result });
-  } catch (err) {
-    console.error('approveApplication error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        await db.query('UPDATE service_requests SET status = "COMPLETED" WHERE id = ?', [jobId]);
+        res.json({ message: "Job completed" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
-async function adminSearchApplications(req, res) {
-  try {
-    const skill = req.query.skill;
-    console.log('Admin searching applications for skill:', skill);
-
-    let rows;
-    if (!skill) {
-      // no skill provided — return all applications
-      rows = await ProviderModel.getAllApplications();
-    } else {
-      rows = await ProviderModel.searchApplicationsBySkill(skill);
-    }
-
-    return res.json(rows);
-  } catch (err) {
-    console.error('adminSearchApplications error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-}
-
-async function adminCreateProvider(req, res) {
-  try {
-    const { first_name, last_name, email, password, phone, skills, is_available, rating } = req.body || {};
-
-    if (!email || !password) return res.status(400).json({ message: 'email and password are required' });
-    if (!isValidEmail(email)) return res.status(400).json({ message: 'Invalid email format' });
-
-    const hashed = await bcrypt.hash(password, 10);
-
-    const data = {
-      first_name: first_name || req.body.firstName || null,
-      last_name: last_name || req.body.lastName || null,
-      email,
-      password: hashed,
-      phone: phone || null,
-      skills: skills || null,
-      is_available: typeof is_available !== 'undefined' ? is_available : 1,
-      rating: typeof rating !== 'undefined' ? rating : 5.0,
-    };
-
-    const result = await ServiceProviderModel.createProvider(data);
-    return res.status(201).json({ message: 'Provider created', id: result.insertId });
-  } catch (err) {
-    console.error('adminCreateProvider error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-}
-
-async function adminGetAllProviders(req, res) {
-  try {
-    const rows = await ServiceProviderModel.getAllProviders();
-    return res.json(rows);
-  } catch (err) {
-    console.error('adminGetAllProviders error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-}
-
-async function adminSearchProviders(req, res) {
-  try {
-    const skill = req.query.skill;
-    console.log('Admin searching providers for skill:', skill);
-    if (!skill) {
-      return res.status(400).json({ message: 'skill query parameter is required' });
-    }
-    const rows = await ServiceProviderModel.searchProvidersBySkill(skill);
-    return res.json(rows);
-  } catch (err) {
-    console.error('adminSearchProviders error', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-}
 
 module.exports = {
-  submitProviderApplication,
-  adminUpdateApplication,
-  getAllApplicationsAdmin,
-  getApplicationByIdAdmin,
-  approveApplication,
-  adminSearchApplications,
-  adminCreateProvider,
-  adminGetAllProviders,
-  adminSearchProviders,
+    submitProviderApplication,
+    providerLogin,
+    getMyJobs,
+    completeJob
 };

@@ -1,42 +1,38 @@
 ﻿require('dotenv').config();
 const express = require('express');
-const app = express();
 const cors = require('cors');
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// DB connection
 const db = require('./config/db');
 
+// Route imports
+const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const requestsRoutes = require('./routes/requestsRoutes');
 const providerRoutes = require('./routes/providerRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
-const authRoutes = require('./routes/authRoutes');
-const adminServiceRequestRoutes = require('./routes/adminServiceRequestRoutes');
 
-
-
-app.use(cors());
-app.use(express.json());
-
-app.use('/admin', adminRoutes);
-app.use('/admin', adminServiceRequestRoutes);
-app.use('/services', serviceRoutes);
-app.use('/requests', requestsRoutes);
-app.use('/providers', providerRoutes);
-app.use('/feedback', feedbackRoutes);
-// auth routes (mounted for admin auth)
+// Routes
 app.use('/api/auth', authRoutes);
-//app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/requests', requestsRoutes);
+app.use('/api/providers', providerRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
+// Root route
 app.get('/', (req, res) => {
   res.json({ message: "Welcome to the Digital Handyman Service API" });
 });
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+  console.log(`✅ Backend running on port ${PORT}`);
 });

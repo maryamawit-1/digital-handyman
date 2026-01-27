@@ -1,128 +1,53 @@
-﻿const pool = require('../config/db');
+﻿const db = require('../config/db');
 
-async function insertServiceRequestWithService(serviceRequest) {
-  const sql = `
-    INSERT INTO service_requests 
-    (referenceId, name, email, phone, address, description, service_id, service_type, service_quantity, estimated_cost, preferred_date, preferred_time, status) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+class ServiceRequest {
+    constructor(data) {
+        this.id = data.id;
+        this.customer_id = data.customer_id;
+        this.service_id = data.service_id;
+        this.service = data.service; // Instance of ServiceType
+        this.service_quantity = data.service_quantity || 1;
+        this.description = data.description;
+        this.preferred_date = data.preferred_date;
+        this.preferred_time = data.preferred_time;
+        this.referenceId = data.referenceId;
+        this.estimated_cost = data.estimated_cost;
+    }
 
-  const params = [
-    serviceRequest.referenceId,
-    serviceRequest.name,
-    serviceRequest.email,
-    serviceRequest.phone,
-    serviceRequest.address,
-    serviceRequest.description || '',
-    serviceRequest.serviceId,
-    serviceRequest.service ? serviceRequest.service.name : 'Unknown',
-    serviceRequest.serviceQuantity,
-    serviceRequest.estimatedCost,
-    serviceRequest.preferredDate || null,
-    serviceRequest.preferredTime || null,
-    serviceRequest.status || 'PENDING'
-  ];
+    generateReferenceId() {
+        this.referenceId = 'SR-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    }
 
-  const [result] = await pool.query(sql, params);
-  return result;
+    calculateEstimatedCost() {
+        if (this.service) {
+            this.estimated_cost = this.service.calculateCost(this.service_quantity);
+        }
+    }
+
+    // Database Methods used by Controller
+    static async insertServiceRequestWithService(request) {
+        const [result] = await db.query(
+            `INSERT INTO service_requests 
+            (referenceId, customer_id, service_id, description, service_quantity, estimated_cost, preferred_date, preferred_time, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
+            [request.referenceId, request.customer_id, request.service_id, request.description, request.service_quantity, request.estimated_cost, request.preferred_date, request.preferred_time]
+        );
+        return result;
+    }
+
+    static async getAllServiceRequests() {
+        const [rows] = await db.query(`
+            SELECT sr.*, c.first_name, c.last_name, s.name as service_name 
+            FROM service_requests sr
+            JOIN customers c ON sr.customer_id = c.id
+            LEFT JOIN services s ON sr.service_id = s.id
+        `);
+        return rows;
+    }
+
+    static async getServiceById(id) {
+        return db.query('SELECT * FROM services WHERE id = ?', [id]);
+    }
 }
 
-async function assignProvidersToRequest(requestId, providerIds = []) {
-  if (!requestId) throw new Error('requestId is required');
-  if (!Array.isArray(providerIds) || providerIds.length === 0) {
-    return { affectedRows: 0 };
-  }
-
-  // Build bulk insert for assignments
-  const placeholders = providerIds.map(() => '(?, ?, NOW())').join(', ');
-  const sql = `INSERT INTO service_request_assignments (request_id, provider_id, assigned_at) VALUES ${placeholders}`;
-  const params = [];
-  for (const pid of providerIds) {
-    params.push(requestId, pid);
-  }
-
-  const [result] = await pool.query(sql, params);
-  return result;
-}
-
-async function updateRequestByAdmin(id, updates = {}) {
-  const fields = [];
-  const params = [];
-
-  if (updates.status !== undefined) {
-    fields.push('status = ?');
-    params.push(updates.status);
-  }
-  if (updates.scheduled_at !== undefined) {
-    fields.push('scheduled_at = ?');
-    params.push(updates.scheduled_at);
-  }
-  if (updates.negotiated_price !== undefined) {
-    fields.push('negotiated_price = ?');
-    params.push(updates.negotiated_price);
-  }
-  if (updates.provider_id !== undefined) {
-    fields.push('provider_id = ?');
-    params.push(updates.provider_id);
-  }
-
-  if (fields.length === 0) {
-    throw new Error('No fields provided to update');
-  }
-
-  fields.push('updated_at = NOW()');
-  const sql = `UPDATE service_requests SET ${fields.join(', ')} WHERE id = ?`;
-  params.push(id);
-
-  const [result] = await pool.query(sql, params);
-  return result;
-}
-
-async function deleteServiceRequest(id) {
-  const sql = 'DELETE FROM service_requests WHERE id = ?';
-  const params = [id];
-  const [result] = await pool.query(sql, params);
-  return result;
-}
-
-async function getServiceRequestByRef(referenceId) {
-  const sql = 'SELECT * FROM service_requests WHERE referenceId = ? LIMIT 1';
-  const [rows] = await pool.query(sql, [referenceId]);
-  return rows;
-}
-
-async function deleteServiceRequestById(id) {
-  const sql = 'DELETE FROM service_requests WHERE id = ?';
-  const [result] = await pool.query(sql, [id]);
-  return result;
-}
-
-async function deleteServiceRequestByRef(referenceId) {
-  const sql = 'DELETE FROM service_requests WHERE referenceId = ?';
-  const [result] = await pool.query(sql, [referenceId]);
-  return result;
-}
-
-async function getAllServiceRequests() {
-  const [rows] = await pool.query('SELECT * FROM service_requests');
-  return rows;
-}
-
-module.exports = {
-  insertServiceRequestWithService,
-  getAllServiceRequests,
-  updateRequestByAdmin,
-  deleteServiceRequest,
-  getServiceRequestByRef,
-  deleteServiceRequestById,
-  deleteServiceRequestByRef,
-  assignProvidersToRequest,
-};
-
-/*async function insertServiceRequest(data) {
-  const sql = `INSERT INTO service_requests (name, email, phone, address, description) VALUES (?, ?, ?, ?, ?)`;
-  const params = [data.name, data.email, data.phone, data.address, data.description];
-  const [result] = await pool.query(sql, params);
-  return result;
-}
-*/
+module.exports = ServiceRequest;

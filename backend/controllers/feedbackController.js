@@ -1,69 +1,51 @@
-﻿const pool = require('../config/db');
+﻿const db = require('../config/db');
 
+// 1. PUBLIC: Submit Feedback (The Loophole Fix is here)
 async function submitFeedback(req, res) {
-	try {
-		const { referenceId, rating, comment = '' } = req.body;
+    const { referenceId, rating, comment } = req.body;
+    try {
+        // Check if job exists and if it is COMPLETED
+        const [rows] = await db.query('SELECT id, status, customer_id FROM service_requests WHERE referenceId = ?', [referenceId]);
+        
+        if (rows.length === 0) return res.status(404).json({ message: "Reference ID not found." });
+        
+        if (rows[0].status !== 'COMPLETED') {
+            return res.status(400).json({ message: "Loophole Blocked: Feedback is only allowed for COMPLETED jobs." });
+        }
 
-		  if (!referenceId || !rating) {
-    return res.status(400).json({ message: "referenceId and rating are required" });
-  }
+        await db.query('INSERT INTO feedback (request_id, customer_id, rating, comment) VALUES (?, ?, ?, ?)', 
+            [rows[0].id, rows[0].customer_id, rating, comment]);
 
-		// find the service request
-		const [requests] = await pool.query(
-			'SELECT id, customer_id FROM service_requests WHERE referenceId = ? LIMIT 1',
-			[referenceId]
-		);
-
-		if (!requests || requests.length === 0) {
-			return res.status(404).json({ message: 'Service request not found for provided referenceId' });
-		}
-
-		const reqRow = requests[0];
-
-		// ensure one feedback per request
-		const [existing] = await pool.query('SELECT id FROM feedback WHERE request_id = ? LIMIT 1', [reqRow.id]);
-		if (existing && existing.length > 0) {
-			return res.status(409).json({ message: 'Feedback already exists for this service request' });
-		}
-
-		const numericRating = Number(rating);
-		if (Number.isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
-			return res.status(400).json({ message: 'rating must be a number between 1 and 5' });
-		}
-
-		// insert feedback
-		const sql = `INSERT INTO feedback (request_id, customer_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())`;
-		const params = [reqRow.id, reqRow.customer_id, numericRating, comment];
-		await pool.query(sql, params);
-
-		return res.status(201).json({ message: 'Feedback submitted' });
-	} catch (err) {
-		console.error('submitFeedback error', err);
-		return res.status(500).json({ message: 'Server error' });
-	}
+        res.json({ message: "Feedback submitted. Thank you!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 }
 
+// 2. ADMIN: Get All Feedback
 async function getAllFeedback(req, res) {
-	try {
-		const sql = `
-			SELECT f.id, f.request_id, sr.referenceId AS referenceId, f.customer_id, f.rating, f.comment, f.created_at
-			FROM feedback f
-			JOIN service_requests sr ON f.request_id = sr.id
-			ORDER BY f.created_at DESC
-		`;
-		const [rows] = await pool.query(sql);
-		return res.json(rows);
-	} catch (err) {
-		console.error('getAllFeedback error', err);
-		return res.status(500).json({ message: 'Server error' });
-	}
+    try {
+        const [rows] = await db.query(`
+            SELECT f.*, c.first_name, c.last_name, sr.referenceId 
+            FROM feedback f
+            JOIN customers c ON f.customer_id = c.id
+            LEFT JOIN service_requests sr ON f.request_id = sr.id
+            ORDER BY f.created_at DESC
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 }
 
+// 3. ADMIN: Delete Feedback
 async function deleteFeedback(req, res) {
-  const { id } = req.params;
-  const [result] = await pool.query('DELETE FROM feedback WHERE id = ?', [id]);
-  if (result.affectedRows === 0) return res.status(404).json({ message: 'Feedback not found' });
-  return res.json({ message: 'Feedback deleted successfully' });
+    try {
+        await db.query('DELETE FROM feedback WHERE id = ?', [req.params.id]);
+        res.json({ message: "Feedback removed" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 }
 
 module.exports = { submitFeedback, getAllFeedback, deleteFeedback };
