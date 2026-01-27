@@ -11,3 +11,5 @@ dist/
 api/.env
 admin-ui/node_modules/
 customer-ui/node_modules/
+customer-ui/.env
+admin-ui/.env
