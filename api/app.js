@@ -31,8 +31,8 @@ app.use('/api/feedback', feedbackRoutes);
 
 app.use(cors({
   origin: [
-    "http://localhost:5173",
-    "http://localhost:7000"
+    "https://digital-handyman.vercel.app",
+    "https://digital-handyman-t4h2.vercel.app"
   ],
   credentials: true
 }));
