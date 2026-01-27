@@ -48,6 +48,12 @@ const sendBookingConfirmation = async (toEmail, customerName, refId, serviceName
            <p><a href="https://digital-handyman.vercel.app/track">Track Request</a></p>`
   };
   await transporter.sendMail(mailOptions);
+  try {
+  await transporter.sendMail(mailOptions);
+  console.log('📧 Email sent to', toEmail);
+} catch (err) {
+  console.error('❌ Email sending failed:', err);
+}
 };
 
 // 4. New Job Assignment (Details to Provider)
