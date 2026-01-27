@@ -14,16 +14,16 @@ const pool = mysql.createPool({
   },
   waitForConnections: true,
   connectionLimit: 10
-});
+}).promise();
 
 // Optional: test connection once
-pool.getConnection((err, connection) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err.message);
-  } else {
+pool.getConnection()
+  .then(connection => {
     console.log("✅ Database connected successfully");
     connection.release();
-  }
-});
+  })
+  .catch(err => {
+    console.error("❌ Database connection failed:", err.message);
+  });
 
 module.exports = pool;
