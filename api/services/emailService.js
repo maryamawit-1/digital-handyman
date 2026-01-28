@@ -1,10 +1,12 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
+const EMAIL_DISABLED = process.env.DISABLE_EMAIL === 'true';
+
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // IMPORTANT
+  secure: true, // Use SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -13,6 +15,21 @@ const transporter = nodemailer.createTransport({
   greetingTimeout: 10000,
   socketTimeout: 10000
 });
+
+// Helper to send email safely
+const safeSendMail = async (mailOptions) => {
+  if (EMAIL_DISABLED) {
+    console.log('[SIMULATED EMAIL] To:', mailOptions.to, '| Subject:', mailOptions.subject);
+    return;
+  }
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('📧 Email sent to', mailOptions.to);
+  } catch (err) {
+    console.error('❌ Email sending failed:', err.message);
+  }
+};
 
 // 1. Application Received (Acknowledgment to Provider)
 const sendApplicationReceivedEmail = async (toEmail, name, skills) => {
@@ -24,7 +41,7 @@ const sendApplicationReceivedEmail = async (toEmail, name, skills) => {
            <p>Thank you for applying as a provider for <b>${skills}</b>.</p>
            <p>Our team is reviewing your application. We will contact you soon.</p>`
   };
-  await transporter.sendMail(mailOptions);
+  await safeSendMail(mailOptions);
 };
 
 // 2. Approval Email (Credentials to Provider)
@@ -38,7 +55,7 @@ const sendApprovalEmail = async (toEmail, name, tempPassword) => {
            <p><b>Email:</b> ${toEmail}<br/><b>Password:</b> ${tempPassword}</p>
            <p><a href="https://digital-handyman.vercel.app/provider/login">Provider Portal</a></p>`
   };
-  await transporter.sendMail(mailOptions);
+  await safeSendMail(mailOptions);
 };
 
 // 3. Booking Confirmation (ID to Customer)
@@ -52,13 +69,7 @@ const sendBookingConfirmation = async (toEmail, customerName, refId, serviceName
            <p>Your Reference ID is: <b>${refId}</b></p>
            <p><a href="https://digital-handyman.vercel.app/track">Track Request</a></p>`
   };
-  await transporter.sendMail(mailOptions);
-  try {
-  await transporter.sendMail(mailOptions);
-  console.log('📧 Email sent to', toEmail);
-} catch (err) {
-  console.error('❌ Email sending failed:', err);
-}
+  await safeSendMail(mailOptions);
 };
 
 // 4. New Job Assignment (Details to Provider)
@@ -71,7 +82,7 @@ const sendJobAssignmentEmail = async (toEmail, providerName, refId, serviceName,
            <p><b>Job:</b> ${serviceName}<br/><b>Location:</b> ${address}<br/><b>Time:</b> ${date} at ${time}</p>
            <p><a href="https://digital-handyman.vercel.app/provider/login">View in Dashboard</a></p>`
   };
-  await transporter.sendMail(mailOptions);
+  await safeSendMail(mailOptions);
 };
 
 // 5. Completion Receipt (Payment to Customer)
@@ -87,7 +98,7 @@ const sendCompletionReceiptEmail = async (toEmail, customerName, refId, serviceN
              <p>Reason: Ref ID ${refId}</p>
            </div>`
   };
-  await transporter.sendMail(mailOptions);
+  await safeSendMail(mailOptions);
 };
 
 // 6. Recovery: Lost IDs (Customer)
@@ -99,7 +110,7 @@ const sendLostIdsEmail = async (toEmail, name, ids) => {
     html: `<h2>Hello ${name},</h2>
            <p>Booking IDs found: <b>${ids.join(', ')}</b></p>`
   };
-  await transporter.sendMail(mailOptions);
+  await safeSendMail(mailOptions);
 };
 
 module.exports = { 
