@@ -4,17 +4,32 @@ import toast from 'react-hot-toast';
 
 const FeedbackPage = () => {
   const [formData, setFormData] = useState({ referenceId: '', rating: 5, comment: '' });
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await submitFeedback(formData);
-      toast.success("Thank you for your feedback!");
-      setFormData({ referenceId: '', rating: 5, comment: '' });
-    } catch (error) {
-      toast.error("Feedback submission failed.");
-    }
+  // Prepare payload
+  const payload = {
+    referenceId: formData.referenceId.trim(),
+    rating: Number(formData.rating),
+    comment: formData.comment?.trim() || ""
   };
+
+  // Optional: simple validation
+  if (!payload.referenceId || payload.referenceId.length < 5) {
+    toast.error("Please enter a valid Reference ID");
+    return;
+  }
+
+  try {
+    const res = await submitFeedback(payload);
+    toast.success(res.data.message || "Thank you for your feedback!");
+    setFormData({ referenceId: '', rating: 5, comment: '' });
+  } catch (error) {
+    console.error(error.response?.data || error);
+    toast.error(error.response?.data?.message || "Feedback submission failed.");
+  }
+};
+
 
   return (
     <div className="max-w-md mx-auto my-10 p-6 bg-white shadow-lg rounded-lg border">
